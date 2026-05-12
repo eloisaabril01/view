@@ -9,7 +9,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import re
 import time
 import threading
-import webbrowser
 import os
 import subprocess
 import signal
@@ -18,6 +17,7 @@ from datetime import datetime
 import base64
 import io
 import json
+import requests as req_lib
 from proxy_manager import proxy_manager, init_proxy_model
 from telegram_bot import telegram_bot
 
@@ -29,7 +29,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 
-# Login manager setup
+# Track app start time for uptime
+APP_START_TIME = datetime.utcnow()
+ping_log = []  # Store last N ping results
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -63,13 +66,13 @@ class VideoSession(db.Model):
     loop_duration = db.Column(db.Integer, nullable=False)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    process_id = db.Column(db.String(100), nullable=True)  # Store background process ID
+    process_id = db.Column(db.String(100), nullable=True)
 
 class UserLimits(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
-    max_grids = db.Column(db.Integer, default=25)  # Default max grid size
-    max_sessions = db.Column(db.Integer, default=5)  # Default max active sessions
+    max_grids = db.Column(db.Integer, default=25)
+    max_sessions = db.Column(db.Integer, default=5)
     user = db.relationship('User', backref=db.backref('limits', uselist=False))
 
 # Forms
@@ -103,11 +106,9 @@ class UserLimitsForm(FlaskForm):
     max_sessions = IntegerField('Max Active Sessions', validators=[InputRequired()], default=5)
     submit = SubmitField('Update Limits')
 
-# Background scheduler for keeping sessions active
 scheduler = BackgroundScheduler()
 scheduler.start()
 
-# Store active background processes
 active_processes = {}
 
 def get_video_id(url):
@@ -120,22 +121,18 @@ def get_video_id(url):
 def create_headless_browser_session(session_id, video_id, video_count):
     """Create optimized web-based session for maximum view generation"""
     try:
-        # Get different fast proxies for each frame
         frame_proxies = proxy_manager.get_proxies_for_frames(session_id, video_count)
 
         if not frame_proxies:
             print(f"❌ No proxies available for session {session_id}")
             return None
 
-        # Create main process ID for tracking
         main_process_id = f"session_{session_id}_optimized"
 
-        # Calculate proxy statistics
         fast_proxy_count = sum(1 for p in frame_proxies if p.get('response_time', 10) < 2.0)
         premium_proxy_count = sum(1 for p in frame_proxies if p.get('is_premium', False))
         unique_regions = len(set(p.get('geographic_region', 'UNKNOWN') for p in frame_proxies))
 
-        # Store enhanced session info
         active_processes[main_process_id] = {
             'process': 'web_based_optimized',
             'session_id': session_id,
@@ -153,34 +150,22 @@ def create_headless_browser_session(session_id, video_id, video_count):
             'last_optimization': datetime.utcnow()
         }
 
-        print(f"✅ Created optimized session {session_id}:")
-        print(f"   📊 Total Proxies: {len(frame_proxies)}")
-        print(f"   ⚡ Fast Proxies: {fast_proxy_count}")
-        print(f"   💎 Premium Proxies: {premium_proxy_count}")
-        print(f"   🌍 Geographic Regions: {unique_regions}")
-        print(f"   🎯 Optimization Level: HIGH")
-
+        print(f"✅ Created optimized session {session_id} with {len(frame_proxies)} proxies")
         return main_process_id
     except Exception as e:
         print(f"❌ Error creating optimized session: {e}")
         return None
 
-# Web-based frame management - no separate processes needed
-
 def stop_background_session(session_id):
     """Stop background video session"""
-    # Find and mark session as stopped
     process_keys_to_remove = []
     for process_id, process_info in active_processes.items():
         if process_info['session_id'] == session_id:
             try:
-                # Handle web-based sessions
-                if process_info.get('process') == 'web_based':
+                if process_info.get('process') in ('web_based', 'web_based_optimized'):
                     process_info['status'] = 'stopped'
                     process_keys_to_remove.append(process_id)
                     print(f"✅ Stopped web-based session {session_id}")
-
-                # Handle legacy browser processes (if any)
                 elif process_info.get('process') and hasattr(process_info['process'], 'pid'):
                     try:
                         pgid = os.getpgid(process_info['process'].pid)
@@ -191,13 +176,10 @@ def stop_background_session(session_id):
                         process_info['process'].wait()
                     except Exception as e:
                         print(f"Error stopping process {process_id}: {e}")
-
                     process_keys_to_remove.append(process_id)
-
             except Exception as e:
                 print(f"Error stopping session process {process_id}: {e}")
 
-    # Remove from active processes
     for key in process_keys_to_remove:
         if key in active_processes:
             del active_processes[key]
@@ -210,54 +192,90 @@ def keep_session_alive():
             for session in active_sessions:
                 print(f"Maintaining background session {session.id} for user {session.user.username}")
 
-                # Check if background process is still running
                 if session.process_id and session.process_id in active_processes:
                     process_info = active_processes[session.process_id]
-                    if process_info['process'].poll() is not None:
-                        # Process died, restart it
+                    # Refresh web-based sessions
+                    if process_info.get('process') in ('web_based_optimized', 'web_based'):
+                        process_info['last_optimization'] = datetime.utcnow()
+                        process_info['status'] = 'active'
+                        print(f"✅ Refreshed web session {session.id}")
+                    elif hasattr(process_info.get('process'), 'poll') and process_info['process'].poll() is not None:
                         print(f"Process for session {session.id} died, restarting...")
                         video_id = get_video_id(session.video_url)
                         new_process_id = create_headless_browser_session(session.id, video_id, session.video_count)
                         if new_process_id:
                             session.process_id = new_process_id
                             db.session.commit()
-                            print(f"✅ Restarted background session {session.id}")
-                        else:
-                            print(f"❌ Failed to restart session {session.id}")
                 elif session.process_id is None:
-                    # No process running, start one
                     print(f"Starting new background process for session {session.id}")
                     video_id = get_video_id(session.video_url)
                     new_process_id = create_headless_browser_session(session.id, video_id, session.video_count)
                     if new_process_id:
                         session.process_id = new_process_id
                         db.session.commit()
-                        print(f"✅ Started background session {session.id}")
-                    else:
-                        print(f"❌ Failed to start session {session.id}")
         except Exception as e:
             print(f"Error in keep_session_alive: {e}")
+
+def self_ping():
+    """Self-ping to keep Render from sleeping. Logs result."""
+    global ping_log
+    app_url = os.environ.get('RENDER_EXTERNAL_URL', '')
+    if not app_url:
+        # Try to build from Render env
+        render_service = os.environ.get('RENDER_SERVICE_NAME', '')
+        if render_service:
+            app_url = f"https://{render_service}.onrender.com"
+
+    if not app_url:
+        print("⚠️  RENDER_EXTERNAL_URL not set, skipping self-ping")
+        ping_log.append({
+            'time': datetime.utcnow().isoformat(),
+            'status': 'skipped',
+            'message': 'No URL configured',
+            'latency_ms': 0
+        })
+        ping_log = ping_log[-50:]
+        return
+
+    ping_url = f"{app_url}/ping"
+    start = time.time()
+    try:
+        resp = req_lib.get(ping_url, timeout=10)
+        latency = int((time.time() - start) * 1000)
+        status = 'ok' if resp.status_code == 200 else 'fail'
+        print(f"🏓 Self-ping → {ping_url} [{resp.status_code}] {latency}ms")
+        ping_log.append({
+            'time': datetime.utcnow().isoformat(),
+            'status': status,
+            'code': resp.status_code,
+            'latency_ms': latency
+        })
+    except Exception as e:
+        latency = int((time.time() - start) * 1000)
+        print(f"❌ Self-ping failed: {e}")
+        ping_log.append({
+            'time': datetime.utcnow().isoformat(),
+            'status': 'error',
+            'message': str(e),
+            'latency_ms': latency
+        })
+    ping_log = ping_log[-50:]
 
 def auto_check_proxies():
     """Background task to check proxies every 5 hours"""
     with app.app_context():
         try:
             print("🔄 Starting automatic proxy check...")
-
-            # Run proxy check
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(proxy_manager.update_proxy_status())
 
-            # Get statistics
             total_proxies = Proxy.query.count()
             working_proxies = Proxy.query.filter_by(is_working=True).count()
-
             print(f"✅ Proxy check complete: {working_proxies}/{total_proxies} working")
 
-            # Send notification to Telegram
             if total_proxies > 0:
-                success_rate = (working_proxies/total_proxies*100)
+                success_rate = (working_proxies / total_proxies * 100)
                 message = f"""
 🔄 *Automatic Proxy Check Complete*
 
@@ -270,16 +288,67 @@ def auto_check_proxies():
 ⏰ *Next Check:* In 5 hours
                 """
                 telegram_bot.send_notification(message)
-
         except Exception as e:
             print(f"Error in auto_check_proxies: {e}")
             telegram_bot.send_notification(f"❌ Error in automatic proxy check: {str(e)}")
 
-# Schedule the background task to run every 10 minutes (less frequent)
+# Schedule jobs
 scheduler.add_job(func=keep_session_alive, trigger="interval", minutes=10)
-
-# Schedule proxy checking every 5 hours
 scheduler.add_job(func=auto_check_proxies, trigger="interval", hours=5)
+# Self-ping every 14 minutes to beat Render's 15-min sleep timer
+scheduler.add_job(func=self_ping, trigger="interval", minutes=14)
+
+# ── Routes ──────────────────────────────────────────────────────────────────
+
+@app.route('/ping')
+def ping():
+    """Health check endpoint used by self-ping"""
+    uptime_seconds = int((datetime.utcnow() - APP_START_TIME).total_seconds())
+    return jsonify({'status': 'ok', 'uptime_seconds': uptime_seconds, 'time': datetime.utcnow().isoformat()})
+
+@app.route('/uptime')
+@login_required
+def uptime_page():
+    if not current_user.is_admin:
+        flash('Access denied.')
+        return redirect(url_for('dashboard'))
+    return render_template('uptime.html')
+
+@app.route('/api/uptime_stats')
+@login_required
+def uptime_stats():
+    if not current_user.is_admin:
+        return jsonify({'error': 'Access denied'}), 403
+
+    uptime_seconds = int((datetime.utcnow() - APP_START_TIME).total_seconds())
+    hours, remainder = divmod(uptime_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    render_url = os.environ.get('RENDER_EXTERNAL_URL', '')
+    render_service = os.environ.get('RENDER_SERVICE_NAME', '')
+    if not render_url and render_service:
+        render_url = f"https://{render_service}.onrender.com"
+
+    successful_pings = sum(1 for p in ping_log if p.get('status') == 'ok')
+    total_pings = len([p for p in ping_log if p.get('status') != 'skipped'])
+    avg_latency = 0
+    if ping_log:
+        latencies = [p['latency_ms'] for p in ping_log if p.get('latency_ms', 0) > 0]
+        avg_latency = int(sum(latencies) / len(latencies)) if latencies else 0
+
+    return jsonify({
+        'uptime_seconds': uptime_seconds,
+        'uptime_formatted': f"{hours}h {minutes}m {seconds}s",
+        'start_time': APP_START_TIME.isoformat(),
+        'render_url': render_url or 'Not configured',
+        'ping_log': list(reversed(ping_log)),
+        'successful_pings': successful_pings,
+        'total_pings': total_pings,
+        'success_rate': round(successful_pings / total_pings * 100, 1) if total_pings > 0 else 0,
+        'avg_latency_ms': avg_latency,
+        'active_sessions': VideoSession.query.filter_by(is_active=True).count(),
+        'total_users': User.query.count(),
+    })
 
 @app.route('/')
 def home():
@@ -358,7 +427,6 @@ def video_grid():
     if not current_user.is_approved and not current_user.is_admin:
         return redirect(url_for('request_access'))
 
-    # Get user limits
     user_limits = UserLimits.query.filter_by(user_id=current_user.id).first()
     if not user_limits:
         user_limits = UserLimits(user_id=current_user.id)
@@ -367,20 +435,17 @@ def video_grid():
 
     form = VideoForm()
     if form.validate_on_submit():
-        # Check session limit
         active_sessions = VideoSession.query.filter_by(user_id=current_user.id, is_active=True).count()
         if active_sessions >= user_limits.max_sessions and not current_user.is_admin:
             flash(f"You have reached your maximum of {user_limits.max_sessions} active sessions.")
             return render_template('video_form.html', form=form, user_limits=user_limits)
 
-        # Check grid size limit
         if form.video_count.data > user_limits.max_grids and not current_user.is_admin:
             flash(f"Maximum grid size allowed is {user_limits.max_grids} videos.")
             return render_template('video_form.html', form=form, user_limits=user_limits)
 
         video_id = get_video_id(form.youtube_url.data)
         if video_id:
-            # Create new video session
             new_session = VideoSession(
                 user_id=current_user.id,
                 video_url=form.youtube_url.data,
@@ -390,20 +455,19 @@ def video_grid():
             db.session.add(new_session)
             db.session.commit()
 
-            # Start background video processing
             process_id = create_headless_browser_session(new_session.id, video_id, form.video_count.data)
             if process_id:
                 new_session.process_id = process_id
                 db.session.commit()
-                flash("Background video session started successfully! Videos will run continuously on the server.")
+                flash("Background video session started successfully!")
             else:
-                flash("Warning: Background processing failed. Session created but may require manual monitoring.")
+                flash("Warning: No proxies available. Session created but running without proxy rotation.")
 
-            return render_template("video_grid.html", 
-                                 video_id=video_id, 
-                                 video_count=form.video_count.data,
-                                 session_id=new_session.id,
-                                 background_mode=True)
+            return render_template("video_grid.html",
+                                   video_id=video_id,
+                                   video_count=form.video_count.data,
+                                   session_id=new_session.id,
+                                   background_mode=True)
         else:
             flash("Invalid YouTube URL. Please try again.")
 
@@ -420,10 +484,10 @@ def admin_dashboard():
     all_users = User.query.all()
     active_sessions = VideoSession.query.filter_by(is_active=True).all()
 
-    return render_template('admin_dashboard.html', 
-                         pending_requests=pending_requests,
-                         users=all_users,
-                         active_sessions=active_sessions)
+    return render_template('admin_dashboard.html',
+                           pending_requests=pending_requests,
+                           users=all_users,
+                           active_sessions=active_sessions)
 
 @app.route('/admin/approve_user/<int:request_id>')
 @login_required
@@ -460,7 +524,7 @@ def toggle_user_status(user_id):
         return redirect(url_for('dashboard'))
 
     user = User.query.get_or_404(user_id)
-    if user.id != current_user.id:  # Don't allow admin to disable themselves
+    if user.id != current_user.id:
         user.is_approved = not user.is_approved
         db.session.commit()
         status = "enabled" if user.is_approved else "disabled"
@@ -472,10 +536,7 @@ def toggle_user_status(user_id):
 def stop_session(session_id):
     session = VideoSession.query.get_or_404(session_id)
     if session.user_id == current_user.id or current_user.is_admin:
-        # Stop background process
         stop_background_session(session_id)
-
-        # Update database
         session.is_active = False
         session.process_id = None
         db.session.commit()
@@ -487,20 +548,16 @@ def stop_session(session_id):
 def session_status(session_id):
     session = VideoSession.query.get_or_404(session_id)
     if session.user_id == current_user.id or current_user.is_admin:
-        # Check if background process is running (web-based)
         background_running = False
         if session.process_id and session.process_id in active_processes:
             process_info = active_processes[session.process_id]
-            # For web-based sessions, check if status is active
-            if process_info.get('process') == 'web_based_optimized' or process_info.get('process') == 'web_based':
+            if process_info.get('process') in ('web_based_optimized', 'web_based'):
                 background_running = process_info.get('status') == 'active'
             elif hasattr(process_info.get('process'), 'poll'):
                 background_running = process_info['process'].poll() is None
 
-        # Get abbreviated proxy information for this session
         proxy_info = proxy_manager.get_abbreviated_proxy_info_for_session(session_id)
 
-        # Get multi-proxy information with abbreviated details if available
         multi_proxy_info = None
         if session.process_id and session.process_id in active_processes:
             process_info = active_processes[session.process_id]
@@ -525,7 +582,6 @@ def session_status(session_id):
 
 @app.route('/api/session_heartbeat/<int:session_id>', methods=['POST'])
 def session_heartbeat(session_id):
-    """Heartbeat endpoint for background sessions"""
     session = VideoSession.query.get_or_404(session_id)
     if session.is_active:
         return jsonify({'status': 'alive'})
@@ -533,48 +589,34 @@ def session_heartbeat(session_id):
 
 @app.route('/api/live_viewers/<int:session_id>')
 def get_live_viewers(session_id):
-    """Get live viewer count for a session"""
     session = VideoSession.query.get_or_404(session_id)
     if not session.is_active:
         return jsonify({'live_viewers': 0, 'status': 'inactive'})
 
-    # Calculate live viewers based on active frames and proxy performance
     if session.process_id and session.process_id in active_processes:
         process_info = active_processes[session.process_id]
-
-        # Calculate live viewers based on active frames and proxy performance
         base_viewers = session.video_count
+        session_duration = (datetime.utcnow() - session.created_at).total_seconds() / 60
 
-        # Get session duration for growth calculation
-        session_duration = (datetime.utcnow() - session.created_at).total_seconds() / 60  # minutes
-
-        # Multiply by proxy effectiveness
         proxy_multiplier = 1.0
         if 'fast_proxy_count' in process_info:
             fast_ratio = process_info['fast_proxy_count'] / max(process_info['proxy_count'], 1)
-            proxy_multiplier = 1.2 + (fast_ratio * 0.8)  # 1.2x to 2.0x multiplier
+            proxy_multiplier = 1.2 + (fast_ratio * 0.8)
 
-        # Add growth factor based on session duration
-        growth_factor = min(1 + (session_duration * 0.15), 4.0)  # Up to 4x growth
+        growth_factor = min(1 + (session_duration * 0.15), 4.0)
 
-        # Add randomness for realistic viewer fluctuation
         import random
         fluctuation = random.uniform(0.9, 1.3)
-
-        # Calculate final viewer count with growth
         live_viewers = int(base_viewers * proxy_multiplier * growth_factor * fluctuation)
 
-        # Add bonus viewers for premium proxies
         if 'premium_proxy_count' in process_info:
             premium_bonus = process_info['premium_proxy_count'] * random.randint(3, 8)
             live_viewers += premium_bonus
 
-        # Add time-based bonus for longer sessions
-        if session_duration > 10:  # After 10 minutes
+        if session_duration > 10:
             time_bonus = int(session_duration * random.uniform(0.5, 1.5))
             live_viewers += time_bonus
 
-        # Ensure minimum realistic count
         live_viewers = max(live_viewers, session.video_count * 2)
 
         return jsonify({
@@ -582,7 +624,6 @@ def get_live_viewers(session_id):
             'status': 'active',
             'base_count': base_viewers,
             'proxy_multiplier': round(proxy_multiplier, 2),
-            'premium_bonus': process_info.get('premium_proxy_count', 0) * 3,
             'frame_count': session.video_count
         })
 
@@ -590,35 +631,27 @@ def get_live_viewers(session_id):
 
 @app.route('/api/viewer_analytics/<int:session_id>')
 def get_viewer_analytics(session_id):
-    """Get detailed viewer analytics for a session"""
     session = VideoSession.query.get_or_404(session_id)
     if not session.is_active:
         return jsonify({'error': 'Session not active'})
 
     if session.process_id and session.process_id in active_processes:
         process_info = active_processes[session.process_id]
-
-        # Generate realistic analytics data
         import random
-        from datetime import datetime, timedelta
+        from datetime import timedelta
 
-        # Simulate viewer growth over time
-        session_duration = (datetime.utcnow() - session.created_at).total_seconds() / 60  # minutes
-        growth_factor = min(1 + (session_duration * 0.1), 3.0)  # Up to 3x growth over time
-
+        session_duration = (datetime.utcnow() - session.created_at).total_seconds() / 60
+        growth_factor = min(1 + (session_duration * 0.1), 3.0)
         base_viewers = session.video_count
         current_viewers = int(base_viewers * growth_factor * random.uniform(0.9, 1.1))
-
-        # Peak viewers (highest point)
         peak_viewers = int(current_viewers * random.uniform(1.2, 1.8))
 
-        # Generate hourly data for the last 6 hours
         hourly_data = []
         for i in range(6):
             hour_factor = random.uniform(0.6, 1.4)
             viewers = int(base_viewers * hour_factor)
             hourly_data.append({
-                'hour': (datetime.utcnow() - timedelta(hours=5-i)).strftime('%H:00'),
+                'hour': (datetime.utcnow() - timedelta(hours=5 - i)).strftime('%H:00'),
                 'viewers': viewers
             })
 
@@ -636,53 +669,12 @@ def get_viewer_analytics(session_id):
 
 @app.route('/api/proxy_request/<int:session_id>/<int:frame_index>')
 def proxy_request(session_id, frame_index):
-    """Route requests through different proxies for each frame with enhanced user agent rotation"""
     if session_id not in [s.id for s in VideoSession.query.filter_by(is_active=True).all()]:
         return jsonify({'error': 'Session not found'}), 404
 
-    # Check if we have any proxies in the database
     total_proxies = Proxy.query.count()
     working_proxies = Proxy.query.filter_by(is_working=True).count()
 
-    if total_proxies == 0:
-        return jsonify({
-            'error': 'No proxies available',
-            'message': 'Add proxies via Telegram bot',
-            'frame_index': frame_index,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'proxy_type': 'DIRECT',
-            'is_fast': False
-        })
-
-    if working_proxies == 0:
-        return jsonify({
-            'error': 'No working proxies available',
-            'message': f'{total_proxies} proxies found but all failed',
-            'frame_index': frame_index,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'proxy_type': 'DIRECT',
-            'is_fast': False
-        })
-
-    # Get proxy for this specific frame
-    frame_proxies = proxy_manager.get_proxies_for_frames(session_id, 200)  # Support up to 200 frames
-
-    if not frame_proxies:
-        return jsonify({
-            'error': 'Unable to assign proxies',
-            'message': f'{working_proxies} working proxies available but assignment failed',
-            'frame_index': frame_index,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'proxy_type': 'DIRECT',
-            'is_fast': False
-        })
-
-    if frame_index >= len(frame_proxies):
-        return jsonify({'error': 'Frame index out of range'}), 400
-
-    proxy_info = frame_proxies[frame_index]
-
-    # Generate unique user agent for this frame
     user_agents = [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -695,10 +687,38 @@ def proxy_request(session_id, frame_index):
         'Mozilla/5.0 (iPad; CPU OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0'
     ]
-
-    # Select user agent based on frame index and session for consistency
     user_agent_index = (session_id * 7 + frame_index * 3) % len(user_agents)
     selected_user_agent = user_agents[user_agent_index]
+
+    if total_proxies == 0:
+        return jsonify({
+            'error': 'No proxies available',
+            'frame_index': frame_index,
+            'user_agent': selected_user_agent,
+            'proxy_type': 'DIRECT',
+            'is_fast': False
+        })
+
+    if working_proxies == 0:
+        return jsonify({
+            'error': 'No working proxies',
+            'frame_index': frame_index,
+            'user_agent': selected_user_agent,
+            'proxy_type': 'DIRECT',
+            'is_fast': False
+        })
+
+    frame_proxies = proxy_manager.get_proxies_for_frames(session_id, 200)
+    if not frame_proxies or frame_index >= len(frame_proxies):
+        return jsonify({
+            'error': 'Frame index out of range',
+            'frame_index': frame_index,
+            'user_agent': selected_user_agent,
+            'proxy_type': 'DIRECT',
+            'is_fast': False
+        })
+
+    proxy_info = frame_proxies[frame_index]
 
     return jsonify({
         'abbreviated_string': proxy_manager.abbreviate_proxy_string(proxy_info['proxy_string']),
@@ -716,92 +736,51 @@ def proxy_request(session_id, frame_index):
 @app.route('/proxy_youtube/<int:session_id>/<int:frame_index>/<video_id>')
 def proxy_youtube_request(session_id, frame_index, video_id):
     """Proxy YouTube requests through different proxies for each frame"""
-    import requests
-
     try:
-        # Get the specific proxy for this frame
         frame_proxies = proxy_manager.get_proxies_for_frames(session_id, 200)
-        if frame_index >= len(frame_proxies):
-            return "Frame index out of range", 400
+        if not frame_proxies or frame_index >= len(frame_proxies):
+            raise Exception("No proxy available for frame")
 
         proxy_info = frame_proxies[frame_index]
         proxy_string = proxy_info['proxy_string']
-
-        # Parse proxy
         proxy_type, ip, port = proxy_manager.parse_proxy_string(proxy_string)
 
-        # Set up proxy configuration
         if proxy_type.lower() == 'http':
-            proxies = {
-                'http': f'http://{ip}:{port}',
-                'https': f'http://{ip}:{port}'
-            }
+            proxies = {'http': f'http://{ip}:{port}', 'https': f'http://{ip}:{port}'}
         else:
-            proxies = {
-                'http': f'{proxy_type.lower()}://{ip}:{port}',
-                'https': f'{proxy_type.lower()}://{ip}:{port}'
-            }
+            proxies = {'http': f'{proxy_type.lower()}://{ip}:{port}', 'https': f'{proxy_type.lower()}://{ip}:{port}'}
 
-        # Generate unique user agent for this frame
         user_agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ]
-
-        user_agent_index = (session_id * 7 + frame_index * 3) % len(user_agents)
-        selected_user_agent = user_agents[user_agent_index]
+        ua_index = (session_id * 7 + frame_index * 3) % len(user_agents)
 
         headers = {
-            'User-Agent': selected_user_agent,
+            'User-Agent': user_agents[ua_index],
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
             'DNT': '1',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
         }
 
-        # Make request to YouTube through proxy
         youtube_url = f'https://www.youtube.com/embed/{video_id}'
         params = {
-            'autoplay': '1',
-            'mute': '1',
-            'controls': '1',
-            'rel': '0',
-            'showinfo': '0',
-            'modestbranding': '1',
-            'enablejsapi': '1',
+            'autoplay': '1', 'mute': '1', 'controls': '1', 'rel': '0',
+            'showinfo': '0', 'modestbranding': '1', 'enablejsapi': '1',
             'origin': request.host_url.rstrip('/'),
-            't': int(time.time()),
-            'frame': frame_index,
-            'session': session_id
+            't': int(time.time()), 'frame': frame_index, 'session': session_id
         }
-
-        # Add query parameters from request
         for key, value in request.args.items():
             params[key] = value
 
-        response = requests.get(
-            youtube_url,
-            params=params,
-            headers=headers,
-            proxies=proxies,
-            timeout=15,
-            allow_redirects=True
-        )
+        response = req_lib.get(youtube_url, params=params, headers=headers, proxies=proxies, timeout=15, allow_redirects=True)
 
         if response.status_code == 200:
-            # Modify the response to ensure proper embedding
             content = response.text
-
-            # Add frame identification
-            content = content.replace(
-                '<head>',
-                f'<head><meta name="frame-id" content="{frame_index}"><meta name="session-id" content="{session_id}"><meta name="proxy-used" content="{proxy_manager.abbreviate_proxy_string(proxy_string)}">'
-            )
-
+            content = content.replace('<head>', f'<head><meta name="frame-id" content="{frame_index}"><meta name="session-id" content="{session_id}"><meta name="proxy-used" content="{proxy_manager.abbreviate_proxy_string(proxy_string)}">')
             return Response(content, mimetype='text/html', headers={
                 'X-Frame-Options': 'ALLOWALL',
                 'Content-Security-Policy': '',
@@ -809,67 +788,22 @@ def proxy_youtube_request(session_id, frame_index, video_id):
                 'X-Frame-Index': str(frame_index)
             })
         else:
-            # Fallback to direct connection if proxy fails
-            direct_response = requests.get(youtube_url, params=params, headers=headers, timeout=10)
-            return Response(direct_response.text, mimetype='text/html', headers={
-                'X-Frame-Options': 'ALLOWALL',
-                'X-Proxy-Used': 'DIRECT-FALLBACK',
-                'X-Frame-Index': str(frame_index)
-            })
+            raise Exception(f"Proxy returned {response.status_code}")
 
     except Exception as e:
-            print(f"Proxy error for frame {frame_index}: {e}")
-
-            # Log proxy status for debugging
-            if 'proxy_string' in locals():
-                print(f"Failed proxy: {proxy_manager.abbreviate_proxy_string(proxy_string)}")
-
-            # Create a working embedded iframe that will generate views
-            return f"""
-            <html>
-            <head>
-                <title>YouTube Frame {frame_index}</title>
-                <style>
-                    body {{ margin: 0; padding: 0; background: #000; }}
-                    iframe {{ width: 100%; height: 100vh; border: none; }}
-                </style>
-            </head>
-            <body>
-                <iframe 
-                    src="https://www.youtube.com/embed/{video_id}?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&enablejsapi=1&origin={request.host_url.rstrip('/')}&t={int(time.time())}&frame={frame_index}&session={session_id}"
-                    allowfullscreen 
-                    allow="autoplay; encrypted-media; fullscreen"
-                    sandbox="allow-scripts allow-same-origin allow-forms">
-                </iframe>
-                <script>
-                    // Force autoplay and engagement
-                    setTimeout(() => {{
-                        const iframe = document.querySelector('iframe');
-                        if (iframe && iframe.contentWindow) {{
-                            try {{
-                                iframe.contentWindow.postMessage('{{"event":"command","func":"playVideo","args":""}}', '*');
-                            }} catch(e) {{
-                                console.log('Autoplay initiated for frame {frame_index}');
-                            }}
-                        }}
-                    }}, 2000);
-
-                    // Simulate engagement
-                    setInterval(() => {{
-                        const iframe = document.querySelector('iframe');
-                        if (iframe) {{
-                            iframe.click();
-                        }}
-                    }}, 30000);
-                </script>
-            </body>
-            </html>
-            """, 200, {
-                'Content-Type': 'text/html', 
-                'X-Frame-Options': 'ALLOWALL',
-                'X-Proxy-Used': proxy_manager.abbreviate_proxy_string(proxy_string) if 'proxy_string' in locals() else 'DIRECT-FALLBACK',
-                'X-Frame-Index': str(frame_index)
-            }
+        print(f"Proxy error for frame {frame_index}: {e}")
+        # Fallback: direct embed
+        host_url = request.host_url.rstrip('/')
+        return f"""<html><head><style>body{{margin:0;padding:0;background:#000}}iframe{{width:100%;height:100vh;border:none}}</style></head>
+<body><iframe src="https://www.youtube.com/embed/{video_id}?autoplay=1&mute=1&controls=1&rel=0&modestbranding=1&enablejsapi=1&loop=1&playlist={video_id}&origin={host_url}&t={int(time.time())}&frame={frame_index}&session={session_id}"
+allowfullscreen allow="autoplay; encrypted-media; fullscreen" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+<script>setTimeout(()=>{{const f=document.querySelector('iframe');if(f&&f.contentWindow){{try{{f.contentWindow.postMessage('{{"event":"command","func":"playVideo","args":""}}','*')}}catch(e){{}}}}}},2000);
+setInterval(()=>{{const f=document.querySelector('iframe');if(f)f.click()}},30000);</script></body></html>""", 200, {
+            'Content-Type': 'text/html',
+            'X-Frame-Options': 'ALLOWALL',
+            'X-Proxy-Used': 'DIRECT-FALLBACK',
+            'X-Frame-Index': str(frame_index)
+        }
 
 @app.route('/all_sessions')
 @login_required
@@ -893,10 +827,10 @@ def view_session(session_id):
         return redirect(url_for('dashboard'))
 
     video_id = get_video_id(session.video_url)
-    return render_template("video_grid.html", 
-                         video_id=video_id, 
-                         video_count=session.video_count,
-                         session_id=session.id)
+    return render_template("video_grid.html",
+                           video_id=video_id,
+                           video_count=session.video_count,
+                           session_id=session.id)
 
 @app.route('/admin/user_limits/<int:user_id>', methods=['GET', 'POST'])
 @login_required
@@ -932,14 +866,13 @@ def proxy_management():
     total_proxies = Proxy.query.count()
     working_proxies = Proxy.query.filter_by(is_working=True).count()
     failed_proxies = Proxy.query.filter_by(is_working=False).count()
-
     recent_proxies = Proxy.query.order_by(Proxy.created_at.desc()).limit(20).all()
 
-    return render_template('proxy_management.html', 
-                         total_proxies=total_proxies,
-                         working_proxies=working_proxies,
-                         failed_proxies=failed_proxies,
-                         recent_proxies=recent_proxies)
+    return render_template('proxy_management.html',
+                           total_proxies=total_proxies,
+                           working_proxies=working_proxies,
+                           failed_proxies=failed_proxies,
+                           recent_proxies=recent_proxies)
 
 @app.route('/api/proxy_stats')
 @login_required
@@ -961,8 +894,8 @@ def proxy_stats():
         'working': working_proxies,
         'failed': failed_proxies,
         'fast': fast_proxies,
-        'success_rate': (working_proxies/total_proxies*100) if total_proxies > 0 else 0,
-        'fast_rate': (fast_proxies/working_proxies*100) if working_proxies > 0 else 0
+        'success_rate': (working_proxies / total_proxies * 100) if total_proxies > 0 else 0,
+        'fast_rate': (fast_proxies / working_proxies * 100) if working_proxies > 0 else 0
     })
 
 @app.route('/api/check_proxies', methods=['POST'])
@@ -970,10 +903,7 @@ def proxy_stats():
 def manual_proxy_check():
     if not current_user.is_admin:
         return jsonify({'error': 'Access denied'}), 403
-
-    # Start proxy check in background
     threading.Thread(target=auto_check_proxies).start()
-
     return jsonify({'message': 'Proxy check started'})
 
 @app.route('/admin/clear_failed_proxies', methods=['POST'])
@@ -986,18 +916,14 @@ def clear_failed_proxies():
     failed_count = Proxy.query.filter_by(is_working=False).count()
     Proxy.query.filter_by(is_working=False).delete()
     db.session.commit()
-
     flash(f'Removed {failed_count} failed proxies!')
     return redirect(url_for('proxy_management'))
 
 if __name__ == "__main__":
     with app.app_context():
-        # Initialize proxy model
         Proxy = init_proxy_model(db)
-
         db.create_all()
 
-        # Create default admin user if it doesn't exist
         admin = User.query.filter_by(username='admin').first()
         if not admin:
             hashed_password = bcrypt.generate_password_hash('admin123')
@@ -1006,11 +932,9 @@ if __name__ == "__main__":
             db.session.commit()
             print("Default admin created: username='admin', password='admin123'")
 
-    # Initialize telegram bot
     from telegram_bot import init_telegram_bot
     init_telegram_bot(db, app, Proxy)
 
-    # Start Telegram bot in background thread with restart protection
     def start_bot_with_protection():
         try:
             telegram_bot.start_bot()
@@ -1023,4 +947,10 @@ if __name__ == "__main__":
     telegram_thread.start()
     print("🤖 Telegram bot started with restart protection")
 
-    app.run(host='0.0.0.0', port=19103, debug=False, use_reloader=False)
+    # Trigger first self-ping after 60s so URL is ready
+    def delayed_first_ping():
+        time.sleep(60)
+        self_ping()
+    threading.Thread(target=delayed_first_ping, daemon=True).start()
+
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 19103)), debug=False, use_reloader=False)
