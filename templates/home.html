@@ -1,65 +1,67 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>YouTube Video Grid - Home</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-        .btn {
-            background-color: #ff0000;
-            color: white;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            margin: 10px;
-            font-size: 16px;
-        }
-        .btn:hover {
-            background-color: #cc0000;
-        }
-        .btn-secondary {
-            background-color: #666;
-        }
-        .btn-secondary:hover {
-            background-color: #444;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ViewMain — Proxy View Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--bg2:#0f0f1a;--bg3:#13131f;--card:#16161f;--card2:#1c1c2a;--border:#2a2a3d;--accent:#7c3aed;--accent2:#a855f7;--accent3:#c084fc;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b}
+html{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;min-height:100vh;overflow-x:hidden}
+body{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:40px 20px;position:relative}
+
+/* animated grid bg */
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:60px 60px;opacity:.3;pointer-events:none;z-index:0}
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 50% at 50% -20%,rgba(124,58,237,.25),transparent);pointer-events:none;z-index:0}
+
+.wrap{position:relative;z-index:1;max-width:580px;width:100%;text-align:center}
+
+.logo-badge{display:inline-flex;align-items:center;gap:10px;background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.4);border-radius:100px;padding:8px 18px;margin-bottom:32px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent3)}
+.logo-badge span{width:8px;height:8px;background:var(--green);border-radius:50%;animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+h1{font-size:clamp(2.2rem,6vw,3.4rem);font-weight:700;line-height:1.1;letter-spacing:-.03em;margin-bottom:16px}
+h1 em{font-style:normal;background:linear-gradient(135deg,var(--accent2),var(--accent3));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+
+.sub{color:var(--text2);font-size:1.05rem;line-height:1.6;margin-bottom:40px;max-width:420px;margin-left:auto;margin-right:auto}
+
+.btn-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:13px 28px;border-radius:10px;font-size:.95rem;font-weight:600;text-decoration:none;transition:all .2s;cursor:pointer;border:none}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 0 30px rgba(124,58,237,.35)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 0 45px rgba(124,58,237,.5)}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text2)}
+.btn-ghost:hover{border-color:var(--accent2);color:var(--text);background:rgba(124,58,237,.08)}
+
+.features{margin-top:56px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;text-align:left}
+.feat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;transition:border-color .2s}
+.feat:hover{border-color:rgba(124,58,237,.5)}
+.feat-icon{font-size:1.5rem;margin-bottom:10px}
+.feat h3{font-size:.9rem;font-weight:600;margin-bottom:4px}
+.feat p{font-size:.8rem;color:var(--text3);line-height:1.4}
+
+footer{margin-top:40px;font-size:.8rem;color:var(--text3);font-family:'JetBrains Mono',monospace}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>🚀 YouTube Video Grid Player</h1>
-        <p>Create synchronized video grids with 24/7 background processing!</p>
-        
-        <div>
-            <a href="{{ url_for('login') }}" class="btn">Login</a>
-            <a href="{{ url_for('register') }}" class="btn btn-secondary">Register</a>
-        </div>
-        
-        <hr>
-        <h3>Features:</h3>
-        <ul style="text-align: left; max-width: 400px; margin: 0 auto;">
-            <li>🔐 Secure user authentication</li>
-            <li>👨‍💼 Admin approval system</li>
-            <li>🔄 24/7 background processing</li>
-            <li>📺 Multiple video grid layouts</li>
-            <li>⏰ Persistent sessions</li>
-        </ul>
-    </div>
+<div class="wrap">
+  <div class="logo-badge"><span></span> SYSTEM ONLINE</div>
+  <h1>The <em>Proxy View</em><br>Engine</h1>
+  <p class="sub">Multi-proxy YouTube session management with Telegram bot control, real-time analytics, and 24/7 background processing.</p>
+  <div class="btn-row">
+    <a href="{{ url_for('login') }}" class="btn btn-primary">⚡ Sign In</a>
+    <a href="{{ url_for('register') }}" class="btn btn-ghost">Create Account →</a>
+  </div>
+
+  <div class="features">
+    <div class="feat"><div class="feat-icon">🔐</div><h3>Secure Auth</h3><p>Admin-gated access with approval system</p></div>
+    <div class="feat"><div class="feat-icon">🌐</div><h3>Multi-Proxy</h3><p>Unique proxy per iframe, auto-rotated</p></div>
+    <div class="feat"><div class="feat-icon">🤖</div><h3>Bot Control</h3><p>Telegram bot for proxy management</p></div>
+    <div class="feat"><div class="feat-icon">📊</div><h3>Analytics</h3><p>Live viewer count & session metrics</p></div>
+    <div class="feat"><div class="feat-icon">🔄</div><h3>Auto-Restart</h3><p>Sessions survive crashes automatically</p></div>
+    <div class="feat"><div class="feat-icon">⏱️</div><h3>Self-Ping</h3><p>Stays awake on Render.com 24/7</p></div>
+  </div>
+  <footer>ViewMain v2.0 · Render-ready · Self-healing</footer>
+</div>
 </body>
 </html>
