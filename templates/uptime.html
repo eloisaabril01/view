@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Uptime Monitor — ViewMain</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--card:#16161f;--card2:#1c1c2a;--border:#2a2a3d;--accent:#7c3aed;--accent2:#a855f7;--accent3:#c084fc;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b}
+html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:60px 60px;opacity:.2;pointer-events:none}
+
+nav{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:60px}
+.nav-brand{font-weight:700;font-size:1rem;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+.nav-links{display:flex;gap:8px}
+.nav-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;font-size:.83rem;font-weight:500;text-decoration:none;transition:all .2s;color:var(--text2);border:1px solid transparent}
+.nav-btn:hover{background:var(--card);border-color:var(--border);color:var(--text)}
+
+main{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:32px 24px}
+h1{font-size:1.7rem;font-weight:700;letter-spacing:-.02em;margin-bottom:6px}
+.sub{color:var(--text3);font-size:.9rem;margin-bottom:28px}
+
+/* big uptime display */
+.uptime-hero{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:32px;margin-bottom:24px;display:flex;align-items:center;gap:32px}
+.uptime-circle{position:relative;width:100px;height:100px;flex-shrink:0}
+.uptime-circle svg{transform:rotate(-90deg)}
+.uptime-circle .bg{fill:none;stroke:var(--border);stroke-width:8}
+.uptime-circle .fill{fill:none;stroke:var(--green);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 1s ease;stroke-dasharray:283;stroke-dashoffset:0}
+.uptime-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:1rem;font-weight:700;color:var(--green)}
+.uptime-info h2{font-size:2rem;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:-.03em}
+.uptime-info .lbl{color:var(--text3);font-size:.85rem;margin-top:4px}
+.uptime-info .sub-info{display:flex;gap:20px;margin-top:12px;flex-wrap:wrap}
+.uptime-info .meta{font-size:.82rem;color:var(--text2)}<br>.uptime-info .meta span{color:var(--text3)}
+
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+.stat-card .val{font-size:1.7rem;font-weight:700;font-family:'JetBrains Mono',monospace}
+.stat-card .lbl{font-size:.75rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
+.val-green{color:var(--green)}.val-yellow{color:var(--yellow)}.val-red{color:var(--red)}.val-blue{color:var(--blue)}.val-purple{color:var(--accent3)}
+
+/* ping log */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px}
+.panel-head{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-head h2{font-size:.95rem;font-weight:600}
+.ping-url{font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--text3);background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:4px 10px}
+.panel-body{padding:0}
+
+/* ping timeline bars */
+.ping-bars{display:flex;align-items:flex-end;gap:3px;padding:16px 24px;height:70px;overflow-x:auto}
+.ping-bar{width:12px;min-height:4px;border-radius:2px;flex-shrink:0;position:relative;cursor:pointer;transition:opacity .15s}
+.ping-bar:hover{opacity:.75}
+.ping-bar.ok{background:var(--green)}
+.ping-bar.fail,.ping-bar.error{background:var(--red)}
+.ping-bar.skipped{background:var(--text3)}
+
+.ping-log{max-height:300px;overflow-y:auto}
+.ping-row{display:grid;grid-template-columns:160px 70px 80px 1fr;align-items:center;gap:12px;padding:10px 24px;border-bottom:1px solid rgba(42,42,61,.4);font-size:.8rem;font-family:'JetBrains Mono',monospace}
+.ping-row:last-child{border-bottom:none}
+.ping-row .time{color:var(--text3)}
+.status-ok{color:var(--green)}.status-fail{color:var(--red)}.status-error{color:var(--red)}.status-skipped{color:var(--text3)}
+.latency{color:var(--yellow)}
+
+.render-box{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:.85rem;color:#93c5fd;line-height:1.6}
+.render-box strong{color:var(--blue)}
+.render-box code{background:rgba(59,130,246,.15);padding:2px 6px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.8rem}
+
+.refresh-note{text-align:right;color:var(--text3);font-size:.75rem;margin-bottom:12px;font-family:'JetBrains Mono',monospace}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-brand">ViewMain · Uptime</div>
+  <div class="nav-links">
+    <a href="{{ url_for('admin_dashboard') }}" class="nav-btn">← Admin</a>
+    <a href="{{ url_for('dashboard') }}" class="nav-btn">Dashboard</a>
+  </div>
+</nav>
+
+<main>
+  <h1>📡 Uptime Monitor</h1>
+  <p class="sub">Self-ping every 14 min keeps Render from sleeping. Auto-refreshes every 30s.</p>
+
+  <!-- Render setup instructions -->
+  <div class="render-box">
+    <strong>Render Setup:</strong> Set environment variable <code>RENDER_EXTERNAL_URL</code> to your app URL (e.g. <code>https://your-app.onrender.com</code>). The self-pinger will hit <code>/ping</code> every 14 minutes automatically. No external service needed.
+  </div>
+
+  <!-- Big uptime hero -->
+  <div class="uptime-hero">
+    <div class="uptime-circle">
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        <circle class="bg" cx="50" cy="50" r="45"/>
+        <circle class="fill" id="uptime-circle-fill" cx="50" cy="50" r="45"/>
+      </svg>
+      <div class="uptime-pct" id="uptime-pct">—</div>
+    </div>
+    <div class="uptime-info">
+      <h2 id="uptime-formatted">Loading…</h2>
+      <div class="lbl">Current Uptime</div>
+      <div class="sub-info">
+        <div class="meta"><span>Started:</span> <span id="start-time">—</span></div>
+        <div class="meta"><span>Ping URL:</span> <span id="ping-url" style="color:var(--accent3)">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="val val-green" id="stat-ok">—</div><div class="lbl">Successful Pings</div></div>
+    <div class="stat-card"><div class="val val-red" id="stat-fail">—</div><div class="lbl">Failed Pings</div></div>
+    <div class="stat-card"><div class="val val-blue" id="stat-success-rate">—</div><div class="lbl">Ping Success Rate</div></div>
+    <div class="stat-card"><div class="val val-yellow" id="stat-latency">—</div><div class="lbl">Avg Latency (ms)</div></div>
+    <div class="stat-card"><div class="val val-purple" id="stat-sessions">—</div><div class="lbl">Active Sessions</div></div>
+    <div class="stat-card"><div class="val val-blue" id="stat-users">—</div><div class="lbl">Total Users</div></div>
+  </div>
+
+  <div class="refresh-note" id="last-refresh">Refreshing…</div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Ping History (last 50)</h2>
+      <span class="ping-url" id="header-url">—</span>
+    </div>
+    <!-- visual bars -->
+    <div class="ping-bars" id="ping-bars"></div>
+    <!-- log rows -->
+    <div class="ping-log" id="ping-log"></div>
+  </div>
+</main>
+
+<script>
+function fmt(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString();
+}
+function fmtShort(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleTimeString();
+}
+
+function load() {
+  fetch('/api/uptime_stats')
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('uptime-formatted').textContent = d.uptime_formatted || '—';
+      document.getElementById('start-time').textContent = fmt(d.start_time);
+      document.getElementById('ping-url').textContent = d.render_url !== 'Not configured' ? d.render_url + '/ping' : '⚠️ Not configured';
+      document.getElementById('header-url').textContent = d.render_url || '—';
+
+      document.getElementById('stat-ok').textContent = d.successful_pings ?? '—';
+      document.getElementById('stat-fail').textContent = (d.total_pings - d.successful_pings) || '0';
+      document.getElementById('stat-success-rate').textContent = d.success_rate ? d.success_rate + '%' : '—';
+      document.getElementById('stat-latency').textContent = d.avg_latency_ms ?? '—';
+      document.getElementById('stat-sessions').textContent = d.active_sessions ?? '—';
+      document.getElementById('stat-users').textContent = d.total_users ?? '—';
+
+      // Uptime circle
+      const pct = d.success_rate || 100;
+      const circ = 283;
+      const offset = circ - (circ * pct / 100);
+      document.getElementById('uptime-circle-fill').style.strokeDashoffset = offset;
+      const pctEl = document.getElementById('uptime-pct');
+      pctEl.textContent = pct + '%';
+      pctEl.style.color = pct >= 90 ? 'var(--green)' : pct >= 70 ? 'var(--yellow)' : 'var(--red)';
+      document.getElementById('uptime-circle-fill').style.stroke = pctEl.style.color;
+
+      // Bars
+      const bars = document.getElementById('ping-bars');
+      bars.innerHTML = '';
+      const logs = (d.ping_log || []).slice().reverse();
+      logs.forEach(p => {
+        const b = document.createElement('div');
+        b.className = 'ping-bar ' + (p.status || 'skipped');
+        const h = Math.max(10, Math.min(50, p.latency_ms ? p.latency_ms / 10 : 10));
+        b.style.height = h + 'px';
+        b.title = `${fmtShort(p.time)} · ${p.status} · ${p.latency_ms}ms`;
+        bars.appendChild(b);
+      });
+
+      // Log rows
+      const log = document.getElementById('ping-log');
+      log.innerHTML = (d.ping_log || []).map(p => `
+        <div class="ping-row">
+          <span class="time">${fmtShort(p.time)}</span>
+          <span class="status-${p.status}">${p.status === 'ok' ? '✓ OK' : p.status === 'skipped' ? '— SKIP' : '✕ FAIL'}</span>
+          <span class="latency">${p.latency_ms ? p.latency_ms + 'ms' : '—'}</span>
+          <span style="color:var(--text3)">${p.message || (p.code ? 'HTTP ' + p.code : '')}</span>
+        </div>`).join('');
+
+      document.getElementById('last-refresh').textContent = 'Last refresh: ' + new Date().toLocaleTimeString();
+    })
+    .catch(e => console.error('Uptime fetch error:', e));
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
