@@ -1,613 +1,225 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Grid - Session {{ session_id }}</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 20px;
-            background-color: #1a1a1a;
-            color: white;
-            font-family: Arial, sans-serif;
-            overflow-x: hidden;
-        }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding: 10px;
-            background: #2d2d2d;
-            border-radius: 8px;
-        }
-        .btn {
-            background: #007bff;
-            color: white;
-            padding: 8px 15px;
-            text-decoration: none;
-            border-radius: 4px;
-            margin-left: 10px;
-        }
-        .btn-danger {
-            background: #dc3545;
-        }
-        .status {
-            color: #28a745;
-            font-weight: bold;
-        }
-        .video-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 8px;
-            justify-items: center;
-        }
-        .video-container {
-            position: relative;
-            width: 240px;
-            height: 135px;
-            background: #000;
-            border-radius: 4px;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            border: 1px solid #333;
-        }
-        .video-container iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-        .proxy-overlay {
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            background: rgba(0, 255, 0, 0.9);
-            color: #000;
-            padding: 1px 4px;
-            border-radius: 2px;
-            font-size: 8px;
-            font-weight: bold;
-            z-index: 10;
-            line-height: 1;
-        }
-        .timing-overlay {
-            position: absolute;
-            bottom: 2px;
-            right: 2px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #000;
-            padding: 1px 4px;
-            border-radius: 2px;
-            font-size: 8px;
-            font-weight: bold;
-            z-index: 10;
-            line-height: 1;
-        }
-        .frame-info {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            background: rgba(0, 123, 255, 0.9);
-            color: white;
-            padding: 1px 4px;
-            border-radius: 2px;
-            font-size: 8px;
-            font-weight: bold;
-            z-index: 10;
-            line-height: 1;
-        }
-        .proxy-type {
-            position: absolute;
-            bottom: 2px;
-            left: 2px;
-            padding: 1px 4px;
-            border-radius: 2px;
-            font-size: 8px;
-            font-weight: bold;
-            z-index: 10;
-            line-height: 1;
-        }
-        .http { background: rgba(40, 167, 69, 0.9); color: white; }
-        .socks4 { background: rgba(255, 193, 7, 0.9); color: black; }
-        .socks5 { background: rgba(0, 123, 255, 0.9); color: white; }
-        .direct { background: rgba(108, 117, 125, 0.9); color: white; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Session #{{ session_id }} — ViewMain</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--card:#16161f;--border:#2a2a3d;--accent:#7c3aed;--accent2:#a855f7;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b}
+html,body{min-height:100vh;background:#000;color:var(--text);font-family:'Space Grotesk',sans-serif}
 
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
+/* top bar */
+.topbar{background:rgba(10,10,15,.95);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:200}
+.tb-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.session-id{font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text3)}
+.live-indicator{display:flex;align-items:center;gap:6px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.35);border-radius:100px;padding:4px 12px;font-size:.8rem;font-weight:600;color:#fca5a5;font-family:'JetBrains Mono',monospace}
+.live-dot{width:6px;height:6px;background:var(--red);border-radius:50%;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.viewer-count{font-size:1.1rem;font-weight:700;font-family:'JetBrains Mono',monospace}
+.proxy-stat{font-size:.75rem;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.tb-right{display:flex;align-items:center;gap:8px}
+.btn-sm{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:7px;font-size:.8rem;font-weight:500;text-decoration:none;transition:all .15s;cursor:pointer;border:1px solid}
+.btn-back{background:rgba(100,116,139,.1);border-color:var(--border);color:var(--text2)}.btn-back:hover{background:rgba(100,116,139,.2)}
+.btn-stop{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#fca5a5}.btn-stop:hover{background:rgba(239,68,68,.2)}
 
-        #live-viewers {
-            text-shadow: 0 0 10px currentColor;
-        }
-    </style>
+/* grid */
+.video-grid{display:grid;gap:4px;padding:4px;background:#000}
+.video-cell{position:relative;background:#111;overflow:hidden;border:1px solid #1a1a2e}
+.video-cell iframe{width:100%;height:100%;border:none;display:block}
+.cell-overlay{position:absolute;top:3px;left:3px;right:3px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:10}
+.frame-num{background:rgba(0,0,0,.7);backdrop-filter:blur(4px);border-radius:4px;padding:2px 6px;font-size:.65rem;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.5)}
+.proxy-tag{background:rgba(16,185,129,.8);backdrop-filter:blur(4px);border-radius:4px;padding:2px 6px;font-size:.62rem;font-family:'JetBrains Mono',monospace;color:#fff;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proxy-tag.direct{background:rgba(100,116,139,.7)}
+.proxy-tag.loading{background:rgba(59,130,246,.7)}
+.timer-tag{position:absolute;bottom:3px;right:3px;background:rgba(0,0,0,.6);border-radius:4px;padding:2px 5px;font-size:.6rem;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.4);pointer-events:none;z-index:10}
+</style>
 </head>
 <body>
-    <div class="header">
-        <div>
-            <h2>🎬 Video Grid Session #{{ session_id }}</h2>
-            <span class="status" id="session-status">● Active Session</span>
-            <div style="font-size: 12px; color: #28a745; margin-top: 5px;">
-                ✅ Background Mode Active - Videos run continuously on server (24/7)
-            </div>
-            <div style="font-size: 10px; color: #6c757d; margin-top: 2px;">
-                Process ID: <span id="process-id">Loading...</span> | 
-                Total Active Processes: <span id="total-processes">Loading...</span>
-            </div>
-            <div style="font-size: 10px; color: #17a2b8; margin-top: 2px;">
-                🔄 Auto-restart enabled - Videos will continue even if processes fail
-            </div>
-             <div style="font-size: 10px; color: #17a2b8; margin-top: 2px;">
-                <span id="proxy-info"></span>
-            </div>
-            <div style="font-size: 10px; color: #17a2b8; margin-top: 2px;">
-                <span id="multi-proxy-info"></span>
-            </div>
-            <div style="font-size: 12px; color: #dc3545; margin-top: 5px; font-weight: bold;">
-                🔴 LIVE: <span id="live-viewers">Loading...</span> viewers watching
-            </div>
-            <div style="font-size: 10px; color: #28a745; margin-top: 2px;">
-                📈 Peak: <span id="peak-viewers">-</span> | 
-                ⏱️ Duration: <span id="session-duration">-</span> | 
-                📊 Growth: <span id="growth-rate">-</span>
-            </div>
-            <div style="font-size: 9px; color: #6c757d; margin-top: 2px; max-height: 60px; overflow-y: auto;" id="frame-proxy-details">
-            </div>
-        </div>
-        <div>
-            <a href="{{ url_for('dashboard') }}" class="btn">← Dashboard</a>
-            <a href="{{ url_for('stop_session', session_id=session_id) }}" class="btn btn-danger">Stop Session</a>
-        </div>
+<div class="topbar">
+  <div class="tb-left">
+    <div>
+      <div class="session-id">SESSION #{{ session_id }} · {{ video_count }} FRAMES</div>
+      <div style="font-size:.75rem;color:var(--green);margin-top:1px">✅ Background mode · 24/7 active</div>
     </div>
+    <div class="live-indicator"><span class="live-dot"></span> LIVE <span class="viewer-count" id="live-viewers">…</span></div>
+    <div class="proxy-stat" id="proxy-stat">Loading proxy info…</div>
+  </div>
+  <div class="tb-right">
+    <a href="{{ url_for('dashboard') }}" class="btn-sm btn-back">← Dashboard</a>
+    <a href="{{ url_for('stop_session', session_id=session_id) }}" class="btn-sm btn-stop">■ Stop Session</a>
+  </div>
+</div>
 
-    <div class="video-grid" id="video-grid">
-        {% for i in range(video_count) %}
-        <div class="video-container" id="container-{{ i }}">
-            <div class="frame-info">F{{ i }}</div>
-            <div class="proxy-overlay" id="proxy-{{ i }}">Loading...</div>
-            <div class="timing-overlay" id="timing-{{ i }}">0.00s</div>
-            <div class="proxy-type" id="type-{{ i }}">Loading...</div>
-            <iframe 
-                id="frame-{{ i }}"
-                src="about:blank"
-                allowfullscreen
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                allow="autoplay; encrypted-media; fullscreen">
-            </iframe>
-        </div>
-        {% endfor %}
-    </div>
+<div class="video-grid" id="video-grid" style="
+  grid-template-columns: repeat({{ [[(video_count**0.5)|round(0,'ceil')|int, 1]|max, 10]|min }}, 1fr);
+">
+{% for i in range(video_count) %}
+<div class="video-cell" id="cell-{{ i }}" style="aspect-ratio:16/9">
+  <div class="cell-overlay">
+    <span class="frame-num">F{{ i }}</span>
+    <span class="proxy-tag loading" id="ptag-{{ i }}">…</span>
+  </div>
+  <span class="timer-tag" id="timer-{{ i }}">0:00</span>
+  <iframe id="frame-{{ i }}" src="about:blank"
+    allowfullscreen
+    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+    allow="autoplay; encrypted-media; fullscreen; picture-in-picture">
+  </iframe>
+</div>
+{% endfor %}
+</div>
 
-    <script>
-        let frameProxies = [];
-        let viewTimers = [];
-        let engagementData = [];
+<script>
+const SESSION_ID = {{ session_id }};
+const VIDEO_ID = '{{ video_id }}';
+const FRAME_COUNT = {{ video_count }};
+const ORIGIN = window.location.origin;
 
-        // Initialize frames with different proxies and user agents
-        async function initializeFrames() {
-            const frames = document.querySelectorAll('iframe');
+const frameData = {};
 
-            for (let i = 0; i < frames.length; i++) {
-                try {
-                    // Get unique proxy for this frame
-                    const response = await fetch(`/api/proxy_request/{{ session_id }}/${i}`);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    
-                    const proxyData = await response.json();
-                    frameProxies[i] = proxyData;
+// ── Grid column calculation ──────────────────────────────────────────────
+(function() {
+  const cols = Math.min(Math.ceil(Math.sqrt(FRAME_COUNT)), 10);
+  document.getElementById('video-grid').style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+})();
 
-                    // Update proxy overlay with abbreviated proxy info
-                    const proxyOverlay = document.getElementById(`proxy-${i}`);
-                    const typeOverlay = document.getElementById(`type-${i}`);
-                    
-                    if (proxyData.error) {
-                        proxyOverlay.textContent = '❌ NO PROXY';
-                        proxyOverlay.style.backgroundColor = 'rgba(220, 53, 69, 0.9)';
-                        typeOverlay.textContent = 'DIRECT';
-                        typeOverlay.className = 'proxy-type direct';
-                    } else if (proxyData.abbreviated_string) {
-                        proxyOverlay.textContent = `✅ ${proxyData.abbreviated_string}`;
-                        proxyOverlay.style.backgroundColor = 'rgba(40, 167, 69, 0.9)';
-                        typeOverlay.textContent = proxyData.proxy_type || 'HTTP';
-                        typeOverlay.className = `proxy-type ${proxyData.proxy_type?.toLowerCase() || 'http'}`;
-                    } else {
-                        proxyOverlay.textContent = '⚠️ DIRECT';
-                        proxyOverlay.style.backgroundColor = 'rgba(255, 193, 7, 0.9)';
-                        typeOverlay.textContent = 'DIRECT';
-                        typeOverlay.className = 'proxy-type direct';
-                    }
+// ── Build embed URL (fallback direct, no proxy dependency) ───────────────
+function buildEmbedUrl(frameIndex, startOffset) {
+  const proxyBase = `/proxy_youtube/${SESSION_ID}/${frameIndex}/${VIDEO_ID}`;
+  const p = new URLSearchParams({
+    autoplay:'1', mute:'1', controls:'1', rel:'0', showinfo:'0',
+    modestbranding:'1', enablejsapi:'1', loop:'1',
+    playlist: VIDEO_ID,
+    origin: ORIGIN,
+    t: Date.now() + frameIndex,
+    start: startOffset || Math.floor(Math.random() * 8),
+    vq: 'small',
+    hl: ['en','es','fr','de','it','pt','ja','ko'][frameIndex % 8],
+    gl: ['US','CA','GB','DE','FR','AU','JP','BR'][frameIndex % 8]
+  });
+  return `${proxyBase}?${p.toString()}`;
+}
 
-                    // Create optimized embed URL for view counting
-                    const embedUrl = createOptimizedEmbedUrl(i, proxyData);
+// ── Init frame with staggered start ──────────────────────────────────────
+async function initFrame(i) {
+  const ptag = document.getElementById(`ptag-${i}`);
 
-                    // Load iframe with delay to simulate natural browsing
-                    setTimeout(() => {
-                        frames[i].src = embedUrl;
-                        initializeFrameInteractions(i);
-                        // Start advanced view generation
-                        setTimeout(() => {
-                            startAdvancedViewGeneration(i);
-                        }, 5000 + Math.random() * 5000);
-                    }, i * 500 + Math.random() * 2000);
+  // Fetch proxy info for display
+  try {
+    const r = await fetch(`/api/proxy_request/${SESSION_ID}/${i}`);
+    const d = await r.json();
+    if (d.abbreviated_string) {
+      ptag.textContent = d.abbreviated_string;
+      ptag.className = 'proxy-tag' + (d.is_fast ? '' : ' direct');
+    } else {
+      ptag.textContent = 'DIRECT';
+      ptag.className = 'proxy-tag direct';
+    }
+    frameData[i] = d;
+  } catch(e) {
+    ptag.textContent = 'DIRECT';
+    ptag.className = 'proxy-tag direct';
+  }
 
-                } catch (error) {
-                    console.error(`Error initializing frame ${i}:`, error);
-                    
-                    // Update display for error state
-                    document.getElementById(`proxy-${i}`).textContent = '❌ ERROR';
-                    document.getElementById(`proxy-${i}`).style.backgroundColor = 'rgba(220, 53, 69, 0.9)';
-                    document.getElementById(`type-${i}`).textContent = 'ERROR';
-                    document.getElementById(`type-${i}`).className = 'proxy-type direct';
-                    
-                    // Fallback to direct connection
-                    const embedUrl = createOptimizedEmbedUrl(i, null);
-                    setTimeout(() => {
-                        frames[i].src = embedUrl;
-                        initializeFrameInteractions(i);
-                    }, i * 500);
-                }
-            }
-        }
+  // Load iframe
+  const iframe = document.getElementById(`frame-${i}`);
+  iframe.src = buildEmbedUrl(i, i * 3); // staggered start times
 
-        function createOptimizedEmbedUrl(frameIndex, proxyData) {
-            // Use our proxy routing system for each frame
-            const proxyBaseUrl = `/proxy_youtube/{{ session_id }}/${frameIndex}/{{ video_id }}`;
-            const params = new URLSearchParams({
-                // Essential for view counting
-                autoplay: '1',
-                mute: '1',  // Start muted to avoid autoplay blocks
-                start: Math.floor(Math.random() * 5), // Random start time (0-5 seconds)
+  // Start timer
+  startTimer(i);
 
-                // Quality settings optimized for view counting
-                vq: 'tiny',        // 144p quality for faster loading
-                quality: 'tiny',
-                hd: '0',
+  // Schedule view cycle restart
+  scheduleRestart(i);
+}
 
-                // Engagement settings for authentic behavior
-                controls: '1',     // Show controls
-                rel: '0',          // No related videos
-                showinfo: '0',     // Hide video info for cleaner look
-                iv_load_policy: '3', // Hide annotations
-                modestbranding: '1', // Hide YouTube logo
+// ── Timer ────────────────────────────────────────────────────────────────
+function startTimer(i) {
+  if (frameData[i] && frameData[i]._timerInt) clearInterval(frameData[i]._timerInt);
+  let secs = 0;
+  const el = document.getElementById(`timer-${i}`);
+  const interval = setInterval(() => {
+    secs++;
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    if (el) el.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+  }, 1000);
+  if (!frameData[i]) frameData[i] = {};
+  frameData[i]._timerInt = interval;
+  frameData[i]._startAt = Date.now();
+}
 
-                // API settings for interaction
-                enablejsapi: '1',
-                origin: window.location.origin,
+// ── Restart cycle to generate fresh views ────────────────────────────────
+function scheduleRestart(i) {
+  // Restart each iframe every 5–8 minutes with fresh params
+  const delay = (300 + Math.random() * 180) * 1000;
+  setTimeout(() => {
+    const iframe = document.getElementById(`frame-${i}`);
+    if (iframe && document.body.contains(iframe)) {
+      iframe.src = buildEmbedUrl(i, Math.floor(Math.random() * 10));
+      startTimer(i);
+      scheduleRestart(i);
+    }
+  }, delay);
+}
 
-                // Unique session identifiers
-                t: Date.now() + frameIndex,
-                hash: btoa(frameIndex + '_' + Date.now() + '_' + (proxyData?.session_token || 'direct')).substring(0, 12),
+// ── Engagement simulation ────────────────────────────────────────────────
+function simulateEngagement(i) {
+  const iframe = document.getElementById(`frame-${i}`);
+  if (!iframe) return;
+  // Post play command
+  try {
+    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+  } catch(e) {}
+}
 
-                // Additional parameters for view validation
-                loop: '1',
-                playlist: '{{ video_id }}', // Required for loop to work
+// ── Staggered init ───────────────────────────────────────────────────────
+for (let i = 0; i < FRAME_COUNT; i++) {
+  setTimeout(() => initFrame(i), i * 400 + Math.random() * 600);
+}
 
-                // Simulate different viewer sessions
-                cc_load_policy: frameIndex % 2, // Toggle captions
-                hl: ['en', 'es', 'fr', 'de', 'it'][frameIndex % 5], // Different languages
-                gl: ['US', 'CA', 'GB', 'AU', 'DE'][frameIndex % 5]  // Different regions
-            });
+// Engagement heartbeat
+setInterval(() => {
+  for (let i = 0; i < FRAME_COUNT; i++) simulateEngagement(i);
+}, 25000);
 
-            return `${proxyBaseUrl}?${params.toString()}`;
-        }
+// ── Live viewers ─────────────────────────────────────────────────────────
+function updateViewers() {
+  fetch(`/api/live_viewers/${SESSION_ID}`)
+    .then(r => r.json())
+    .then(d => {
+      const el = document.getElementById('live-viewers');
+      if (el && d.live_viewers) el.textContent = d.live_viewers.toLocaleString();
+    }).catch(() => {});
+}
 
-        function initializeFrameInteractions(frameIndex) {
-            engagementData[frameIndex] = {
-                clicks: 0,
-                hovers: 0,
-                watchTime: 0,
-                startTime: Date.now(),
-                proxyVerified: false,
-                viewsGenerated: 0
-            };
+// ── Proxy stats in topbar ────────────────────────────────────────────────
+function updateProxyStat() {
+  fetch(`/api/session_status/${SESSION_ID}`)
+    .then(r => r.json())
+    .then(d => {
+      const el = document.getElementById('proxy-stat');
+      if (!el) return;
+      if (d.proxy_info) {
+        const pi = d.proxy_info;
+        el.textContent = `🔗 ${pi.abbreviated_string} · ${pi.response_time?.toFixed(2)||'?'}s · ${pi.success_rate?.toFixed(0)||'?'}% ok`;
+      }
+      if (d.multi_proxy_info) {
+        el.textContent = `🌐 ${d.multi_proxy_info.proxy_count} proxies · ${FRAME_COUNT} frames`;
+      }
+    }).catch(() => {});
+}
 
-            // Start watch time tracking
-            viewTimers[frameIndex] = setInterval(() => {
-                engagementData[frameIndex].watchTime += 1;
-            }, 1000);
+updateViewers();
+updateProxyStat();
+setInterval(updateViewers, 4000);
+setInterval(updateProxyStat, 30000);
 
-            // Verify proxy is being used
-            const frame = document.getElementById(`frame-${frameIndex}`);
-            if (frame) {
-                frame.onload = function() {
-                    // Check if proxy headers are present
-                    try {
-                        const proxyUsed = frame.contentWindow?.document?.querySelector('meta[name="proxy-used"]')?.content;
-                        if (proxyUsed && proxyUsed !== 'DIRECT-ERROR') {
-                            engagementData[frameIndex].proxyVerified = true;
-                            document.getElementById(`proxy-${frameIndex}`).style.color = '#28a745';
-                            document.getElementById(`proxy-${frameIndex}`).textContent = `✅ ${proxyUsed}`;
-                        }
-                    } catch(e) {
-                        // Cross-origin restrictions, but that's expected
-                        engagementData[frameIndex].proxyVerified = true;
-                    }
-                };
-
-                // Simulate user engagement for view generation
-                setInterval(() => {
-                    if (frame.contentWindow) {
-                        try {
-                            // Simulate video interactions to generate views
-                            const events = ['click', 'mouseover', 'focus'];
-                            const randomEvent = events[Math.floor(Math.random() * events.length)];
-
-                            // Create and dispatch events in the iframe
-                            const event = new Event(randomEvent, { bubbles: true });
-                            frame.contentWindow.document.dispatchEvent(event);
-
-                            engagementData[frameIndex].viewsGenerated++;
-                        } catch(e) {
-                            // Expected due to cross-origin restrictions
-                        }
-                    }
-                }, 10000 + Math.random() * 20000); // Random intervals 10-30 seconds
-            }
-
-            // Add interaction tracking
-            const container = document.getElementById(`container-${frameIndex}`);
-            if (container) {
-                container.addEventListener('mouseenter', () => {
-                    engagementData[frameIndex].hovers++;
-                });
-
-                container.addEventListener('click', () => {
-                    engagementData[frameIndex].clicks++;
-                });
-            }
-        }
-
-        function startAdvancedViewGeneration(frameIndex) {
-            const iframe = document.getElementById(`frame-${frameIndex}`);
-
-            // Phase 1: Initial engagement (0-30 seconds)
-            setTimeout(() => {
-                // Unmute and start playback
-                iframe.contentWindow.postMessage('{"event":"command","func":"unMute","args":""}', '*');
-                iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-
-                // Update timing display
-                startTimingCounter(frameIndex);
-
-            }, Math.random() * 5000);
-
-            // Phase 2: Engagement simulation (30 seconds - 2 minutes)
-            setTimeout(() => {
-                simulateUserEngagement(frameIndex);
-            }, 30000 + Math.random() * 30000);
-
-            // Phase 3: View completion and restart (2-5 minutes)
-            setTimeout(() => {
-                completeViewCycle(frameIndex);
-            }, 120000 + Math.random() * 180000);
-        }
-
-        function simulateUserEngagement(frameIndex) {
-            const iframe = document.getElementById(`frame-${frameIndex}`);
-            const actions = [
-                () => {
-                    // Random seek to show engagement
-                    const randomTime = Math.floor(Math.random() * 60);
-                    iframe.contentWindow.postMessage(`{"event":"command","func":"seekTo","args":"[${randomTime}, true]"}`, '*');
-                },
-                () => {
-                    // Pause and play to simulate user control
-                    iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-                    setTimeout(() => {
-                        iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-                    }, 2000 + Math.random() * 8000);
-                },
-                () => {
-                    // Volume adjustment
-                    const volume = Math.floor(Math.random() * 50) + 25;
-                    iframe.contentWindow.postMessage(`{"event":"command","func":"setVolume","args":"[${volume}]"}`, '*');
-                },
-                () => {
-                    // Quality change simulation
-                    iframe.contentWindow.postMessage('{"event":"command","func":"setPlaybackQuality","args":"[\"tiny\"]"}', '*');
-                }
-            ];
-
-            // Execute random actions with intervals
-            const actionInterval = setInterval(() => {
-                if (Math.random() < 0.3) { // 30% chance to perform action
-                    const randomAction = actions[Math.floor(Math.random() * actions.length)];
-                    randomAction();
-                }
-            }, 10000 + Math.random() * 20000);
-
-            // Store interval for cleanup
-            if (!engagementData[frameIndex]) engagementData[frameIndex] = {};
-            engagementData[frameIndex].actionInterval = actionInterval;
-        }
-
-        function completeViewCycle(frameIndex) {
-            // Clear existing intervals
-            if (engagementData[frameIndex]?.actionInterval) {
-                clearInterval(engagementData[frameIndex].actionInterval);
-            }
-            if (viewTimers[frameIndex]) {
-                clearInterval(viewTimers[frameIndex]);
-            }
-
-            // Generate new view with fresh parameters
-            setTimeout(() => {
-                const iframe = document.getElementById(`frame-${frameIndex}`);
-                const newUrl = createOptimizedEmbedUrl(frameIndex, frameProxies[frameIndex]);
-                iframe.src = newUrl;
-
-                // Restart the cycle
-                setTimeout(() => {
-                    startAdvancedViewGeneration(frameIndex);
-                }, 3000);
-
-            }, 5000 + Math.random() * 10000);
-        }
-
-        function startTimingCounter(frameIndex) {
-            let seconds = 0;
-            viewTimers[frameIndex] = setInterval(() => {
-                seconds++;
-                const minutes = Math.floor(seconds / 60);
-                const remainingSeconds = seconds % 60;
-                document.getElementById(`timing-${frameIndex}`).textContent = 
-                    `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-            }, 1000);
-        }
-
-        // Initialize when page loads
-        window.addEventListener('load', () => {
-            setTimeout(initializeFrames, 1000);
-        });
-
-        // Memory optimization: Clean up resources periodically
-        setInterval(() => {
-            // Force garbage collection hints
-            if (window.gc) window.gc();
-
-            // Clear old engagement data
-            Object.keys(engagementData).forEach(key => {
-                if (engagementData[key] && Object.keys(engagementData[key]).length > 10) {
-                    engagementData[key] = {};
-                }
-            });
-        }, 300000); // Every 5 minutes
-
-        // Update live viewer count
-        function updateLiveViewers() {
-            fetch(`/api/live_viewers/{{ session_id }}`)
-                .then(response => response.json())
-                .then(data => {
-                    const liveViewersElement = document.getElementById('live-viewers');
-
-                    if (data.live_viewers) {
-                        // Add animated effect for viewer count changes
-                        const currentCount = parseInt(liveViewersElement.textContent) || 0;
-                        const newCount = data.live_viewers;
-
-                        if (newCount !== currentCount) {
-                            liveViewersElement.style.animation = 'pulse 0.5s ease-in-out';
-                            setTimeout(() => {
-                                liveViewersElement.style.animation = '';
-                            }, 500);
-                        }
-
-                        liveViewersElement.textContent = newCount.toLocaleString();
-                        liveViewersElement.style.color = data.status === 'active' ? '#dc3545' : '#ffc107';
-                    } else {
-                        liveViewersElement.textContent = '0';
-                        liveViewersElement.style.color = '#6c757d';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating live viewers:', error);
-                    document.getElementById('live-viewers').textContent = 'Error';
-                });
-        }
-
-        // Update viewer analytics
-        function updateViewerAnalytics() {
-            fetch(`/api/viewer_analytics/{{ session_id }}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.peak_viewers) {
-                        document.getElementById('peak-viewers').textContent = data.peak_viewers.toLocaleString();
-                        document.getElementById('session-duration').textContent = `${data.session_duration_minutes}m`;
-                        document.getElementById('growth-rate').textContent = data.growth_rate;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error updating analytics:', error);
-                });
-        }
-
-        // Check session status every 30 seconds
-        function checkSessionStatus() {
-            fetch(`/api/session_status/{{ session_id }}`)
-                .then(response => response.json())
-                .then(data => {
-                    const statusElement = document.getElementById('session-status');
-                    const processIdElement = document.getElementById('process-id');
-                    const totalProcessesElement = document.getElementById('total-processes');
-                    const proxyInfoElement = document.getElementById('proxy-info');
-
-                    if (data.active) {
-                        statusElement.textContent = data.background_running ? '● Active (Background Running)' : '● Active (Starting...)';
-                        statusElement.style.color = data.background_running ? '#28a745' : '#ffc107';
-                    } else {
-                        statusElement.textContent = '● Inactive';
-                        statusElement.style.color = '#dc3545';
-                    }
-
-                    processIdElement.textContent = data.process_id || 'None';
-                    totalProcessesElement.textContent = data.total_active_processes || 0;
-
-                    // Update proxy information with abbreviated display
-                    if (data.proxy_info) {
-                        const fastBadge = data.proxy_info.is_fast ? '⚡' : '🐌';
-                        proxyInfoElement.innerHTML = 
-                            `🔗 Proxy: ${data.proxy_info.abbreviated_string} | ` +
-                            `${fastBadge} ${data.proxy_info.response_time.toFixed(2)}s | ` +
-                            `📊 ${data.proxy_info.success_rate.toFixed(1)}%`;
-                    } else {
-                        proxyInfoElement.innerHTML = '🔗 No proxy configured';
-                    }
-
-                    if (data.multi_proxy_info) {
-                        document.getElementById('multi-proxy-info').innerHTML = 
-                            `🌐 Multi-Proxy Mode: ${data.multi_proxy_info.proxy_count} fast proxies | ` +
-                            `📺 Frames: ${data.multi_proxy_info.frame_processes}`;
-
-                        // Update frame proxy details
-                        const frameDetailsElement = document.getElementById('frame-proxy-details');
-                        if (data.multi_proxy_info.frame_details) {
-                            let frameDetailsHtml = '<strong>Frame Proxies:</strong><br>';
-                            data.multi_proxy_info.frame_details.forEach(frame => {
-                                const speedIcon = frame.is_fast ? '⚡' : '🐌';
-                                const typeColor = frame.proxy_type === 'HTTP' ? '#28a745' : 
-                                                frame.proxy_type === 'SOCKS5' ? '#007bff' : '#ffc107';
-                                frameDetailsHtml += 
-                                    `F${frame.frame_index}: <span style="color:${typeColor}">${frame.abbreviated_string}</span> ` +
-                                    `${speedIcon}${frame.response_time.toFixed(2)}s<br>`;
-                            });
-                            frameDetailsElement.innerHTML = frameDetailsHtml;
-                        }
-                    } else {
-                        document.getElementById('multi-proxy-info').innerHTML = '';
-                        document.getElementById('frame-proxy-details').innerHTML = '';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error checking session status:', error);
-                    document.getElementById('session-status').textContent = '● Status Unknown';
-                    document.getElementById('session-status').style.color = '#6c757d';
-                    document.getElementById('proxy-info').textContent = '🔗 Proxy status unknown';
-                });
-        }
-
-        // Update live viewers every 3 seconds for real-time feel
-        setInterval(updateLiveViewers, 3000);
-
-        // Update analytics every 30 seconds
-        setInterval(updateViewerAnalytics, 30000);
-
-        // Check status every 30 seconds
-        setInterval(checkSessionStatus, 30000);
-
-        // Initial checks
-        updateLiveViewers();
-        updateViewerAnalytics();
-        checkSessionStatus();
-
-        // Keep session alive by sending periodic requests
-        setInterval(function() {
-            fetch('/api/session_status/{{ session_id }}');
-        }, 300000); // Every 5 minutes
-    </script>
+// Keep session alive heartbeat to server
+setInterval(() => {
+  fetch(`/api/session_heartbeat/${SESSION_ID}`, {method:'POST'}).catch(() => {});
+}, 120000);
+</script>
 </body>
 </html>
