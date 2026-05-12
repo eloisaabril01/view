@@ -1,85 +1,69 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Login - YouTube Video Grid</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 500px;
-            margin: 50px auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        input[type="text"], input[type="password"] {
-            width: 100%;
-            padding: 10px;
-            margin: 8px 0;
-            border: 2px solid #ddd;
-            border-radius: 5px;
-            box-sizing: border-box;
-        }
-        button {
-            background-color: #ff0000;
-            color: white;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            width: 100%;
-            font-size: 16px;
-        }
-        button:hover {
-            background-color: #cc0000;
-        }
-        .flash-message {
-            background-color: #f8d7da;
-            color: #721c24;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-        .link {
-            text-align: center;
-            margin-top: 20px;
-        }
-        .link a {
-            color: #ff0000;
-            text-decoration: none;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign In — ViewMain</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--card:#16161f;--border:#2a2a3d;--accent:#7c3aed;--accent2:#a855f7;--accent3:#c084fc;--green:#10b981;--red:#ef4444;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b}
+html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif}
+body{display:flex;align-items:center;justify-content:center;padding:20px;position:relative}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:60px 60px;opacity:.25;pointer-events:none}
+body::after{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 60% 60% at 50% 0,rgba(124,58,237,.2),transparent);pointer-events:none}
+
+.card{position:relative;z-index:1;width:100%;max-width:420px;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;box-shadow:0 25px 60px rgba(0,0,0,.5)}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--text3);text-decoration:none;font-size:.85rem;margin-bottom:28px;transition:color .2s}
+.back:hover{color:var(--text2)}
+.card-head{margin-bottom:32px}
+.tag{display:inline-block;background:rgba(124,58,237,.2);border:1px solid rgba(124,58,237,.4);border-radius:100px;padding:4px 12px;font-size:.75rem;font-family:'JetBrains Mono',monospace;color:var(--accent3);margin-bottom:14px}
+h1{font-size:1.8rem;font-weight:700;letter-spacing:-.02em}
+.sub{color:var(--text3);font-size:.9rem;margin-top:4px}
+
+.flash{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:.88rem;color:#fca5a5}
+
+label{display:block;font-size:.83rem;font-weight:500;color:var(--text2);margin-bottom:6px;letter-spacing:.03em;text-transform:uppercase}
+input[type=text],input[type=password]{width:100%;background:#0f0f1a;border:1px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-size:.95rem;font-family:'Space Grotesk',sans-serif;outline:none;transition:border-color .2s,box-shadow .2s;margin-bottom:20px}
+input:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(168,85,247,.15)}
+input::placeholder{color:var(--text3)}
+
+.btn-submit{width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:8px;padding:13px;color:#fff;font-size:.95rem;font-weight:600;font-family:'Space Grotesk',sans-serif;cursor:pointer;transition:all .2s;box-shadow:0 0 25px rgba(124,58,237,.3);margin-top:4px}
+.btn-submit:hover{transform:translateY(-1px);box-shadow:0 0 35px rgba(124,58,237,.45)}
+
+.divider{text-align:center;color:var(--text3);font-size:.83rem;margin:24px 0;position:relative}
+.divider::before,.divider::after{content:'';position:absolute;top:50%;width:42%;height:1px;background:var(--border)}
+.divider::before{left:0}.divider::after{right:0}
+
+.link-row{text-align:center;font-size:.88rem;color:var(--text3)}
+.link-row a{color:var(--accent3);text-decoration:none;font-weight:500}
+.link-row a:hover{color:#fff}
+</style>
 </head>
 <body>
-    <div class="container">
-        <h2>🔐 Login</h2>
-        
-        {% with messages = get_flashed_messages() %}
-        {% if messages %}
-        {% for message in messages %}
-        <div class="flash-message">{{ message }}</div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
-        
-        <form method="POST">
-            {{ form.hidden_tag() }}
-            {{ form.username() }}
-            {{ form.password() }}
-            {{ form.submit() }}
-        </form>
-        
-        <div class="link">
-            <a href="{{ url_for('register') }}">Don't have an account? Register here</a>
-        </div>
-        <div class="link">
-            <a href="{{ url_for('home') }}">← Back to Home</a>
-        </div>
-    </div>
+<div class="card">
+  <a href="{{ url_for('home') }}" class="back">← Back</a>
+  <div class="card-head">
+    <div class="tag">AUTH</div>
+    <h1>Welcome back</h1>
+    <p class="sub">Sign in to your ViewMain account</p>
+  </div>
+
+  {% with messages = get_flashed_messages() %}
+  {% if messages %}{% for m in messages %}<div class="flash">⚠️ {{ m }}</div>{% endfor %}{% endif %}
+  {% endwith %}
+
+  <form method="POST">
+    {{ form.hidden_tag() }}
+    <label>Username</label>
+    {{ form.username(autocomplete="username") }}
+    <label>Password</label>
+    {{ form.password(autocomplete="current-password") }}
+    {{ form.submit(class="btn-submit") }}
+  </form>
+
+  <div class="divider">or</div>
+  <div class="link-row"><a href="{{ url_for('register') }}">Don't have an account? Register →</a></div>
+</div>
 </body>
 </html>
