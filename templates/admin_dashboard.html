@@ -1,158 +1,168 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Admin Dashboard - YouTube Video Grid</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1400px;
-            margin: 20px auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .header {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        .btn {
-            background-color: #28a745;
-            color: white;
-            padding: 8px 12px;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            margin: 2px;
-            font-size: 14px;
-        }
-        .btn:hover {
-            background-color: #218838;
-        }
-        .btn-danger {
-            background-color: #dc3545;
-        }
-        .btn-danger:hover {
-            background-color: #c82333;
-        }
-        .btn-warning {
-            background-color: #ffc107;
-            color: #212529;
-        }
-        .btn-warning:hover {
-            background-color: #e0a800;
-        }
-        .request-item, .user-item, .session-item {
-            border: 1px solid #ddd;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 5px;
-            background-color: #f9f9f9;
-        }
-        .admin-badge {
-            background-color: #007bff;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 12px;
-        }
-        .approved-badge {
-            background-color: #28a745;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 12px;
-        }
-        .pending-badge {
-            background-color: #ffc107;
-            color: #212529;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 12px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — ViewMain</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--card:#16161f;--card2:#1c1c2a;--border:#2a2a3d;--accent:#7c3aed;--accent2:#a855f7;--accent3:#c084fc;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b}
+html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:60px 60px;opacity:.2;pointer-events:none}
+
+nav{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:60px}
+.nav-brand{font-weight:700;font-size:1rem;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+.admin-tag{background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.35);border-radius:100px;padding:3px 10px;font-size:.7rem;font-family:'JetBrains Mono',monospace;color:#fcd34d}
+.nav-links{display:flex;gap:8px;align-items:center}
+.nav-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;font-size:.83rem;font-weight:500;text-decoration:none;transition:all .2s;color:var(--text2);border:1px solid transparent}
+.nav-btn:hover{background:var(--card);border-color:var(--border);color:var(--text)}
+.nav-btn.danger{color:#fca5a5}.nav-btn.danger:hover{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3)}
+
+main{position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:32px 24px}
+.page-head{margin-bottom:28px}
+.page-head h1{font-size:1.7rem;font-weight:700;letter-spacing:-.02em}
+
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:32px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+.stat-card .val{font-size:1.9rem;font-weight:700;font-family:'JetBrains Mono',monospace}
+.stat-card .lbl{font-size:.78rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.val-green{color:var(--green)}.val-yellow{color:var(--yellow)}.val-red{color:var(--red)}.val-purple{color:var(--accent3)}.val-blue{color:var(--blue)}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:768px){.grid-2{grid-template-columns:1fr}}
+
+.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px}
+.panel-head{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-head h2{font-size:.95rem;font-weight:600}
+.count-badge{background:rgba(124,58,237,.2);border:1px solid rgba(124,58,237,.35);border-radius:100px;padding:2px 10px;font-size:.73rem;font-family:'JetBrains Mono',monospace;color:var(--accent3)}
+.panel-body{padding:16px 24px}
+
+.item{padding:14px 0;border-bottom:1px solid rgba(42,42,61,.5);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.item:last-child{border-bottom:none;padding-bottom:0}
+.item-info h4{font-size:.9rem;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.item-info p{font-size:.8rem;color:var(--text3);line-height:1.5}
+.item-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:.7rem;font-weight:500;font-family:'JetBrains Mono',monospace}
+.badge-admin{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);color:#93c5fd}
+.badge-approved{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#6ee7b7}
+.badge-pending{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#fcd34d}
+.badge-disabled{background:rgba(100,116,139,.1);border:1px solid rgba(100,116,139,.2);color:var(--text3)}
+.badge-active{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#6ee7b7}
+
+.btn-sm{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:7px;font-size:.78rem;font-weight:500;text-decoration:none;transition:all .15s;cursor:pointer;border:1px solid}
+.btn-approve{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:#6ee7b7}.btn-approve:hover{background:rgba(16,185,129,.2)}
+.btn-deny{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#fca5a5}.btn-deny:hover{background:rgba(239,68,68,.2)}
+.btn-edit{background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.3);color:#93c5fd}.btn-edit:hover{background:rgba(59,130,246,.2)}
+.btn-toggle{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:#fcd34d}.btn-toggle:hover{background:rgba(245,158,11,.2)}
+.btn-view{background:rgba(124,58,237,.1);border-color:rgba(124,58,237,.3);color:var(--accent3)}.btn-view:hover{background:rgba(124,58,237,.2)}
+.btn-stop{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#fca5a5}.btn-stop:hover{background:rgba(239,68,68,.2)}
+
+.empty{padding:30px 0;text-align:center;color:var(--text3);font-size:.88rem}
+
+.flash{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:.88rem;color:#6ee7b7}
+</style>
 </head>
 <body>
-    <div class="header">
-        <h1>🛠️ Admin Dashboard</h1>
-        <div>
-            <a href="{{ url_for('all_sessions') }}" class="btn">View All Sessions</a>
-            <a href="{{ url_for('dashboard') }}" class="btn">Back to Dashboard</a>
-            <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
-        </div>
-    </div>
+<nav>
+  <div class="nav-brand">ViewMain <span class="admin-tag">ADMIN</span></div>
+  <div class="nav-links">
+    <a href="{{ url_for('uptime_page') }}" class="nav-btn">📡 Uptime</a>
+    <a href="{{ url_for('proxy_management') }}" class="nav-btn">🔗 Proxies</a>
+    <a href="{{ url_for('all_sessions') }}" class="nav-btn">📋 Sessions</a>
+    <a href="{{ url_for('dashboard') }}" class="nav-btn">Dashboard</a>
+    <a href="{{ url_for('logout') }}" class="nav-btn danger">Sign Out</a>
+  </div>
+</nav>
 
-    <div class="container">
-        <h2>📋 Pending Access Requests ({{ pending_requests|length }})</h2>
-        {% if pending_requests %}
-        {% for request in pending_requests %}
-        <div class="request-item">
-            <h4>{{ request.user.username }} <span class="pending-badge">PENDING</span></h4>
-            <p><strong>Requested:</strong> {{ request.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
-            {% if request.message %}
-            <p><strong>Message:</strong> {{ request.message }}</p>
-            {% endif %}
-            <a href="{{ url_for('approve_user', request_id=request.id) }}" class="btn">Approve</a>
-            <a href="{{ url_for('deny_user', request_id=request.id) }}" class="btn btn-danger">Deny</a>
-        </div>
-        {% endfor %}
-        {% else %}
-        <p>No pending access requests.</p>
-        {% endif %}
-    </div>
+<main>
+  {% with messages = get_flashed_messages() %}
+  {% if messages %}{% for m in messages %}<div class="flash">✅ {{ m }}</div>{% endfor %}{% endif %}
+  {% endwith %}
 
-    <div class="container">
-        <h2>👥 All Users ({{ users|length }})</h2>
+  <div class="page-head"><h1>Admin Panel</h1></div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="val val-yellow">{{ pending_requests|length }}</div><div class="lbl">Pending Requests</div></div>
+    <div class="stat-card"><div class="val val-blue">{{ users|length }}</div><div class="lbl">Total Users</div></div>
+    <div class="stat-card"><div class="val val-green">{{ active_sessions|length }}</div><div class="lbl">Active Sessions</div></div>
+  </div>
+
+  <!-- Pending Requests -->
+  <div class="panel" style="margin-bottom:20px">
+    <div class="panel-head">
+      <h2>⏳ Pending Access Requests</h2>
+      <span class="count-badge">{{ pending_requests|length }}</span>
+    </div>
+    <div class="panel-body">
+      {% if pending_requests %}
+      {% for req in pending_requests %}
+      <div class="item">
+        <div class="item-info">
+          <h4>{{ req.user.username }} <span class="badge badge-pending">PENDING</span></h4>
+          <p>Requested: {{ req.created_at.strftime('%Y-%m-%d %H:%M') }}{% if req.message %} · "{{ req.message }}"{% endif %}</p>
+        </div>
+        <div class="item-actions">
+          <a href="{{ url_for('approve_user', request_id=req.id) }}" class="btn-sm btn-approve">✓ Approve</a>
+          <a href="{{ url_for('deny_user', request_id=req.id) }}" class="btn-sm btn-deny">✕ Deny</a>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="empty">No pending requests</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Users -->
+    <div class="panel">
+      <div class="panel-head"><h2>👥 All Users</h2><span class="count-badge">{{ users|length }}</span></div>
+      <div class="panel-body">
         {% for user in users %}
-        <div class="user-item">
-            <h4>{{ user.username }} 
-                {% if user.is_admin %}<span class="admin-badge">ADMIN</span>{% endif %}
-                {% if user.is_approved %}<span class="approved-badge">APPROVED</span>{% endif %}
+        <div class="item">
+          <div class="item-info">
+            <h4>{{ user.username }}
+              {% if user.is_admin %}<span class="badge badge-admin">ADMIN</span>{% endif %}
+              {% if user.is_approved %}<span class="badge badge-approved">OK</span>{% elif not user.is_admin %}<span class="badge badge-disabled">LOCKED</span>{% endif %}
             </h4>
-            <p><strong>Sessions:</strong> {{ user.video_sessions|length }} ({{ user.video_sessions|selectattr('is_active')|list|length }} active)</p>
-            {% if user.limits %}
-            <p><strong>Limits:</strong> {{ user.limits.max_sessions }} sessions, {{ user.limits.max_grids }} grid size</p>
-            {% endif %}
+            <p>{{ user.video_sessions|selectattr('is_active')|list|length }} active / {{ user.video_sessions|length }} total sessions{% if user.limits %} · {{ user.limits.max_sessions }} sess limit{% endif %}</p>
+          </div>
+          <div class="item-actions">
             {% if not user.is_admin or user.id != current_user.id %}
-            <a href="{{ url_for('toggle_user_status', user_id=user.id) }}" class="btn btn-warning">
-                {% if user.is_approved %}Disable{% else %}Enable{% endif %}
-            </a>
+            <a href="{{ url_for('toggle_user_status', user_id=user.id) }}" class="btn-sm btn-toggle">{{ '🔒' if user.is_approved else '🔓' }}</a>
             {% endif %}
-            <a href="{{ url_for('manage_user_limits', user_id=user.id) }}" class="btn">Edit Limits</a>
+            <a href="{{ url_for('manage_user_limits', user_id=user.id) }}" class="btn-sm btn-edit">⚙️</a>
+          </div>
         </div>
         {% endfor %}
+      </div>
     </div>
 
-    <div class="container">
-        <h2>🎬 Active Sessions ({{ active_sessions|length }})</h2>
+    <!-- Active Sessions -->
+    <div class="panel">
+      <div class="panel-head"><h2>🎬 Active Sessions</h2><span class="count-badge">{{ active_sessions|length }}</span></div>
+      <div class="panel-body">
         {% if active_sessions %}
         {% for session in active_sessions %}
-        <div class="session-item">
-            <h4>Session #{{ session.id }} - {{ session.user.username }}</h4>
-            <p><strong>Video URL:</strong> {{ session.video_url }}</p>
-            <p><strong>Grid Size:</strong> {{ session.video_count }} videos</p>
-            <p><strong>Started:</strong> {{ session.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
-            <a href="{{ url_for('view_session', session_id=session.id) }}" class="btn">View Session</a>
-            <a href="{{ url_for('stop_session', session_id=session.id) }}" class="btn btn-danger">Stop Session</a>
+        <div class="item">
+          <div class="item-info">
+            <h4>#{{ session.id }} <span class="badge badge-active">LIVE</span></h4>
+            <p>{{ session.user.username }} · {{ session.video_count }} frames · {{ session.created_at.strftime('%H:%M') }}</p>
+          </div>
+          <div class="item-actions">
+            <a href="{{ url_for('view_session', session_id=session.id) }}" class="btn-sm btn-view">View</a>
+            <a href="{{ url_for('stop_session', session_id=session.id) }}" class="btn-sm btn-stop">Stop</a>
+          </div>
         </div>
         {% endfor %}
         {% else %}
-        <p>No active sessions.</p>
+        <div class="empty">No active sessions</div>
         {% endif %}
+      </div>
     </div>
+  </div>
+</main>
 </body>
 </html>
